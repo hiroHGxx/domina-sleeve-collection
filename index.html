@@ -19,26 +19,35 @@
         .table th, .table td {
             vertical-align: middle;
         }
-        .container {
-            padding-top: 2rem;
-            padding-bottom: 2rem;
+        .container-fluid {
+            padding-left: 2rem;
+            padding-right: 2rem;
         }
         .card {
             border: none;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
         .btn-owned-toggle {
-            width: 100px; /* Fixed width for consistency */
+            width: 100px;
         }
         .filter-controls {
             margin-bottom: 1.5rem;
+        }
+        .price-input {
+            min-width: 80px; /* Shortened width */
+            text-align: right;
+        }
+        .price-cell-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <header class="text-center mb-5">
+    <div class="container-fluid">
+        <header class="text-center my-5">
             <h1 class="display-4">Domina Games Sleeve Collection</h1>
             <p class="lead text-muted">A comprehensive list of card sleeves.</p>
         </header>
@@ -54,13 +63,17 @@
             </div>
 
             <div class="card">
-                <div class="card-body">
+                <div class="card-body table-responsive">
                     <table class="table table-hover">
                         <thead class="table-light">
                             <tr>
-                                <th scope="col" style="width: 15%;">Image</th>
+                                <th scope="col">Image</th>
                                 <th scope="col">Product Name</th>
-                                <th scope="col" style="width: 15%;">Owned Status</th>
+                                <th scope="col">Owned</th>
+                                <th scope="col">Mercari</th>
+                                <th scope="col">Amazon</th>
+                                <th scope="col">Rakuten</th>
+                                <th scope="col">Surugaya</th>
                             </tr>
                         </thead>
                         <tbody id="sleeves-table-body">
@@ -72,7 +85,7 @@
         </main>
 
         <footer class="text-center mt-5 text-muted">
-            <p>Generated from sleeves.json. Ownership data is saved in your browser.</p>
+            <p>Generated from sleeves.json. Ownership and price data are saved in your browser.</p>
         </footer>
     </div>
 
@@ -80,36 +93,44 @@
         document.addEventListener('DOMContentLoaded', function() {
             const tableBody = document.getElementById('sleeves-table-body');
             const filterButtonGroup = document.querySelector('.btn-group');
+            const vendors = ['mercari', 'amazon', 'rakuten', 'surugaya'];
 
-            // Function to update button and row appearance using the correct Bootstrap table classes
+            // --- Formatting and Utility Functions ---
+            const toHalfWidth = (str) => str.replace(/[！-～]/g, r => String.fromCharCode(r.charCodeAt(0) - 0xFEE0));
+            const cleanToNumber = (str) => toHalfWidth(str).replace(/[^0-9]/g, '');
+            const formatNumber = (numStr) => {
+                const num = parseInt(numStr, 10);
+                return isNaN(num) ? '' : num.toLocaleString('ja-JP');
+            };
+
             const updateRowAppearance = (row, button, isOwned) => {
                 if (isOwned) {
                     button.textContent = 'Owned';
                     button.classList.remove('btn-secondary');
                     button.classList.add('btn-success');
-                    row.classList.add('table-success'); // CORRECT class for table rows
+                    row.classList.add('table-success');
                 } else {
                     button.textContent = 'Not Owned';
                     button.classList.remove('btn-success');
                     button.classList.add('btn-secondary');
-                    row.classList.remove('table-success'); // CORRECT class for table rows
+                    row.classList.remove('table-success');
                 }
             };
 
-            // Load data and render table
+            // --- Main Data Loading and Rendering ---
             fetch('sleeves.json')
                 .then(response => response.json())
                 .then(data => {
                     if (!tableBody) return;
-                    tableBody.innerHTML = ''; // Clear existing content
+                    tableBody.innerHTML = '';
 
                     data.forEach(sleeve => {
                         const row = document.createElement('tr');
                         row.dataset.sleeveId = sleeve.id;
-                        const storageKey = `sleeve_owned_${sleeve.id}`;
-                        const isOwned = localStorage.getItem(storageKey) === 'true';
+                        const ownedStorageKey = `sleeve_owned_${sleeve.id}`;
+                        const isOwned = localStorage.getItem(ownedStorageKey) === 'true';
 
-                        // Image cell
+                        // Image, Name, Owned Status cells (as before)
                         const imgCell = document.createElement('td');
                         if (sleeve.image_url) {
                             const img = document.createElement('img');
@@ -121,12 +142,10 @@
                         }
                         row.appendChild(imgCell);
 
-                        // Name cell
                         const nameCell = document.createElement('td');
                         nameCell.textContent = sleeve.product_name;
                         row.appendChild(nameCell);
 
-                        // Owned status cell
                         const ownedCell = document.createElement('td');
                         const ownedButton = document.createElement('button');
                         ownedButton.className = 'btn btn-sm btn-owned-toggle';
@@ -135,17 +154,46 @@
                         row.appendChild(ownedCell);
                         
                         updateRowAppearance(row, ownedButton, isOwned);
+
+                        // Price input cells
+                        vendors.forEach(vendor => {
+                            const priceCell = document.createElement('td');
+                            const wrapper = document.createElement('div');
+                            wrapper.className = 'price-cell-wrapper';
+
+                            const priceInput = document.createElement('input');
+                            priceInput.type = 'text'; // Use text to allow formatted display
+                            priceInput.inputMode = 'numeric'; // Hint for mobile keyboards
+                            priceInput.className = 'form-control form-control-sm price-input';
+                            priceInput.dataset.id = sleeve.id;
+                            priceInput.dataset.vendor = vendor;
+                            
+                            const priceStorageKey = `sleeve_price_${vendor}_${sleeve.id}`;
+                            const savedValue = localStorage.getItem(priceStorageKey) || '';
+                            priceInput.value = formatNumber(savedValue); // Display formatted on load
+
+                            const yenLabel = document.createElement('span');
+                            yenLabel.textContent = '円';
+                            
+                            wrapper.appendChild(priceInput);
+                            wrapper.appendChild(yenLabel);
+                            priceCell.appendChild(wrapper);
+                            row.appendChild(priceCell);
+                        });
+
                         tableBody.appendChild(row);
                     });
                 })
                 .catch(error => {
                     console.error('Error fetching or parsing sleeves.json:', error);
                     if(tableBody) {
-                        tableBody.innerHTML = `<tr><td colspan="3" class="text-center text-danger">Error loading data.</td></tr>`;
+                        tableBody.innerHTML = `<tr><td colspan="7" class="text-center text-danger">Error loading data.</td></tr>`;
                     }
                 });
 
-            // Event listener for ownership toggle
+            // --- Event Listeners ---
+
+            // Ownership toggle
             tableBody.addEventListener('click', function(e) {
                 if (e.target && e.target.matches('button.btn-owned-toggle')) {
                     const button = e.target;
@@ -161,24 +209,48 @@
                 }
             });
 
-            // Event listener for filter buttons
+            // Show raw number on focus for price inputs
+            tableBody.addEventListener('focus', function(e) {
+                if (e.target && e.target.matches('input.price-input')) {
+                    const input = e.target;
+                    input.value = cleanToNumber(input.value);
+                }
+            }, true);
+
+            // Format and save on blur for price inputs
+            tableBody.addEventListener('blur', function(e) {
+                if (e.target && e.target.matches('input.price-input')) {
+                    const input = e.target;
+                    const cleanValue = cleanToNumber(input.value);
+                    
+                    const sleeveId = input.dataset.id;
+                    const vendor = input.dataset.vendor;
+                    const storageKey = `sleeve_price_${vendor}_${sleeveId}`;
+                    
+                    localStorage.setItem(storageKey, cleanValue);
+                    input.value = formatNumber(cleanValue); // Re-format for display
+                }
+            }, true);
+
+            // Filter buttons
             filterButtonGroup.addEventListener('click', function(e) {
                 if (e.target && e.target.matches('button')) {
                     filterButtonGroup.querySelector('.active').classList.remove('active');
-                    e.target.classList.add('active');
+e.target.classList.add('active');
 
                     const filter = e.target.dataset.filter;
                     const rows = tableBody.querySelectorAll('tr');
 
                     rows.forEach(row => {
-                        // The check is now based on the CORRECT Bootstrap class
                         const isOwned = row.classList.contains('table-success');
                         let show = false;
                         if (filter === 'all') {
                             show = true;
-                        } else if (filter === 'owned' && isOwned) {
+                        }
+                        else if (filter === 'owned' && isOwned) {
                             show = true;
-                        } else if (filter === 'not-owned' && !isOwned) {
+                        }
+                        else if (filter === 'not-owned' && !isOwned) {
                             show = true;
                         }
                         row.style.display = show ? '' : 'none';
