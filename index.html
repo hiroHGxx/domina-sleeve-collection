@@ -37,6 +37,17 @@
             min-width: 80px; /* Shortened width */
             text-align: right;
         }
+        .price-input.has-value {
+            background-color: #fff3cd;
+            border-color: #ffc107;
+            font-weight: 500;
+        }
+        .price-input.lowest-price {
+            background-color: #d1e7dd;
+            border-color: #198754;
+            font-weight: 700;
+            box-shadow: 0 0 0 0.2rem rgba(25, 135, 84, 0.25);
+        }
         .price-cell-wrapper {
             display: flex;
             align-items: center;
@@ -60,6 +71,27 @@
                     <button type="button" class="btn btn-outline-primary" data-filter="owned">Owned</button>
                     <button type="button" class="btn btn-outline-primary" data-filter="not-owned">Not Owned</button>
                 </div>
+            </div>
+
+            <!-- Data Management Controls -->
+            <div class="text-center mb-3">
+                <div class="btn-group" role="group" aria-label="Data management">
+                    <button type="button" class="btn btn-outline-success" id="export-data-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-download" viewBox="0 0 16 16">
+                            <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+                            <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
+                        </svg>
+                        Export Data
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" id="import-data-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-upload" viewBox="0 0 16 16">
+                            <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+                            <path d="M7.646 4.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 5.707V14.5a.5.5 0 0 1-1 0V5.707L5.354 7.854a.5.5 0 1 1-.708-.708l3-3z"/>
+                        </svg>
+                        Import Data
+                    </button>
+                </div>
+                <input type="file" id="import-file-input" accept=".json" style="display: none;">
             </div>
 
             <div class="card">
@@ -115,6 +147,50 @@
                     button.classList.add('btn-secondary');
                     row.classList.remove('table-success');
                 }
+            };
+
+            // --- Price Highlighting Functions ---
+            const updatePriceHighlighting = (sleeveId) => {
+                const row = tableBody.querySelector(`tr[data-sleeve-id="${sleeveId}"]`);
+                if (!row) return;
+
+                const priceInputs = row.querySelectorAll('input.price-input');
+                const prices = [];
+
+                // Collect all prices for this sleeve
+                priceInputs.forEach(input => {
+                    const cleanValue = cleanToNumber(input.value);
+                    const numValue = parseInt(cleanValue, 10);
+
+                    // Remove all highlighting classes first
+                    input.classList.remove('has-value', 'lowest-price');
+
+                    if (cleanValue && !isNaN(numValue) && numValue > 0) {
+                        prices.push({ input, value: numValue });
+                    }
+                });
+
+                // Apply highlighting
+                if (prices.length > 0) {
+                    // Find the lowest price
+                    const lowestPrice = Math.min(...prices.map(p => p.value));
+
+                    prices.forEach(({ input, value }) => {
+                        if (value === lowestPrice) {
+                            input.classList.add('lowest-price');
+                        } else {
+                            input.classList.add('has-value');
+                        }
+                    });
+                }
+            };
+
+            const updateAllPriceHighlighting = () => {
+                const rows = tableBody.querySelectorAll('tr[data-sleeve-id]');
+                rows.forEach(row => {
+                    const sleeveId = row.dataset.sleeveId;
+                    updatePriceHighlighting(sleeveId);
+                });
             };
 
             // --- Main Data Loading and Rendering ---
@@ -183,6 +259,9 @@
 
                         tableBody.appendChild(row);
                     });
+
+                    // Apply initial price highlighting after all rows are loaded
+                    updateAllPriceHighlighting();
                 })
                 .catch(error => {
                     console.error('Error fetching or parsing sleeves.json:', error);
@@ -222,13 +301,16 @@
                 if (e.target && e.target.matches('input.price-input')) {
                     const input = e.target;
                     const cleanValue = cleanToNumber(input.value);
-                    
+
                     const sleeveId = input.dataset.id;
                     const vendor = input.dataset.vendor;
                     const storageKey = `sleeve_price_${vendor}_${sleeveId}`;
-                    
+
                     localStorage.setItem(storageKey, cleanValue);
                     input.value = formatNumber(cleanValue); // Re-format for display
+
+                    // Update price highlighting for this row
+                    updatePriceHighlighting(sleeveId);
                 }
             }, true);
 
@@ -256,6 +338,102 @@ e.target.classList.add('active');
                         row.style.display = show ? '' : 'none';
                     });
                 }
+            });
+
+            // --- Export/Import Functionality ---
+
+            // Export data button
+            document.getElementById('export-data-btn').addEventListener('click', function() {
+                const exportData = {
+                    exportDate: new Date().toISOString(),
+                    version: '1.0',
+                    data: {}
+                };
+
+                // Collect all localStorage data with sleeve_ prefix
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key.startsWith('sleeve_')) {
+                        exportData.data[key] = localStorage.getItem(key);
+                    }
+                }
+
+                // Create and download JSON file
+                const dataStr = JSON.stringify(exportData, null, 2);
+                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(dataBlob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `domina-sleeves-backup-${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+
+                alert(`Data exported successfully!\nTotal items: ${Object.keys(exportData.data).length}`);
+            });
+
+            // Import data button
+            document.getElementById('import-data-btn').addEventListener('click', function() {
+                document.getElementById('import-file-input').click();
+            });
+
+            // File input handler
+            document.getElementById('import-file-input').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    try {
+                        const importData = JSON.parse(event.target.result);
+
+                        // Validate import data structure
+                        if (!importData.data || typeof importData.data !== 'object') {
+                            throw new Error('Invalid data format');
+                        }
+
+                        // Confirm before overwriting
+                        const itemCount = Object.keys(importData.data).length;
+                        const confirmed = confirm(
+                            `Import ${itemCount} items?\n\n` +
+                            `This will overwrite existing data.\n` +
+                            `Export Date: ${importData.exportDate || 'Unknown'}\n` +
+                            `Version: ${importData.version || 'Unknown'}\n\n` +
+                            `Continue?`
+                        );
+
+                        if (!confirmed) {
+                            e.target.value = ''; // Reset file input
+                            return;
+                        }
+
+                        // Import data to localStorage
+                        let importCount = 0;
+                        for (const [key, value] of Object.entries(importData.data)) {
+                            if (key.startsWith('sleeve_')) {
+                                localStorage.setItem(key, value);
+                                importCount++;
+                            }
+                        }
+
+                        alert(`Import successful!\n${importCount} items imported.`);
+
+                        // Reload page to reflect imported data
+                        location.reload();
+                    } catch (error) {
+                        alert(`Import failed: ${error.message}\n\nPlease check the file format.`);
+                    }
+
+                    e.target.value = ''; // Reset file input
+                };
+
+                reader.onerror = function() {
+                    alert('Failed to read file.');
+                    e.target.value = ''; // Reset file input
+                };
+
+                reader.readAsText(file);
             });
         });
     </script>
