@@ -53,6 +53,19 @@
             align-items: center;
             gap: 0.5rem;
         }
+        .vendor-header {
+            min-width: 120px;
+        }
+        .vendor-filter-btn {
+            font-size: 0.75rem;
+            padding: 0.15rem 0.35rem;
+        }
+        .product-link {
+            text-decoration: none;
+        }
+        .product-link:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -102,10 +115,38 @@
                                 <th scope="col">Image</th>
                                 <th scope="col">Product Name</th>
                                 <th scope="col">Owned</th>
-                                <th scope="col">Mercari</th>
-                                <th scope="col">Amazon</th>
-                                <th scope="col">Rakuten</th>
-                                <th scope="col">Surugaya</th>
+                                <th scope="col" class="vendor-header">
+                                    <div class="d-flex align-items-center justify-content-between gap-2">
+                                        <span>Mercari</span>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm vendor-filter-btn" data-vendor="mercari" aria-pressed="false" title="価格入力済みのみ表示">
+                                            価格のみ
+                                        </button>
+                                    </div>
+                                </th>
+                                <th scope="col" class="vendor-header">
+                                    <div class="d-flex align-items-center justify-content-between gap-2">
+                                        <span>Amazon</span>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm vendor-filter-btn" data-vendor="amazon" aria-pressed="false" title="価格入力済みのみ表示">
+                                            価格のみ
+                                        </button>
+                                    </div>
+                                </th>
+                                <th scope="col" class="vendor-header">
+                                    <div class="d-flex align-items-center justify-content-between gap-2">
+                                        <span>Rakuten</span>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm vendor-filter-btn" data-vendor="rakuten" aria-pressed="false" title="価格入力済みのみ表示">
+                                            価格のみ
+                                        </button>
+                                    </div>
+                                </th>
+                                <th scope="col" class="vendor-header">
+                                    <div class="d-flex align-items-center justify-content-between gap-2">
+                                        <span>Surugaya</span>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm vendor-filter-btn" data-vendor="surugaya" aria-pressed="false" title="価格入力済みのみ表示">
+                                            価格のみ
+                                        </button>
+                                    </div>
+                                </th>
                             </tr>
                         </thead>
                         <tbody id="sleeves-table-body">
@@ -124,8 +165,11 @@
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const tableBody = document.getElementById('sleeves-table-body');
-            const filterButtonGroup = document.querySelector('.btn-group');
+            const filterButtonGroup = document.querySelector('.filter-controls .btn-group');
             const vendors = ['mercari', 'amazon', 'rakuten', 'surugaya'];
+            const vendorFilterButtons = document.querySelectorAll('.vendor-filter-btn');
+            const activeVendorFilters = new Set();
+            let currentOwnershipFilter = 'all';
 
             // --- Formatting and Utility Functions ---
             const toHalfWidth = (str) => str.replace(/[！-～]/g, r => String.fromCharCode(r.charCodeAt(0) - 0xFEE0));
@@ -133,6 +177,34 @@
             const formatNumber = (numStr) => {
                 const num = parseInt(numStr, 10);
                 return isNaN(num) ? '' : num.toLocaleString('ja-JP');
+            };
+
+            const rowHasPriceForVendor = (row, vendor) => {
+                const input = row.querySelector(`input.price-input[data-vendor="${vendor}"]`);
+                if (!input) return false;
+                const cleanValue = cleanToNumber(input.value);
+                return cleanValue.length > 0 && !isNaN(parseInt(cleanValue, 10));
+            };
+
+            const applyFilters = () => {
+                if (!tableBody) return;
+                const rows = tableBody.querySelectorAll('tr[data-sleeve-id]');
+                rows.forEach(row => {
+                    const isOwned = row.classList.contains('table-success');
+                    let ownershipMatch = true;
+                    if (currentOwnershipFilter === 'owned') {
+                        ownershipMatch = isOwned;
+                    } else if (currentOwnershipFilter === 'not-owned') {
+                        ownershipMatch = !isOwned;
+                    }
+
+                    let vendorMatch = true;
+                    if (activeVendorFilters.size > 0) {
+                        vendorMatch = Array.from(activeVendorFilters).every(vendor => rowHasPriceForVendor(row, vendor));
+                    }
+
+                    row.style.display = ownershipMatch && vendorMatch ? '' : 'none';
+                });
             };
 
             const updateRowAppearance = (row, button, isOwned) => {
@@ -219,7 +291,18 @@
                         row.appendChild(imgCell);
 
                         const nameCell = document.createElement('td');
-                        nameCell.textContent = sleeve.product_name;
+                        if (sleeve.url) {
+                            const link = document.createElement('a');
+                            link.href = sleeve.url;
+                            link.textContent = sleeve.product_name;
+                            link.target = '_blank';
+                            link.rel = 'noopener noreferrer';
+                            link.className = 'product-link';
+                            link.title = '公式ページを開く';
+                            nameCell.appendChild(link);
+                        } else {
+                            nameCell.textContent = sleeve.product_name;
+                        }
                         row.appendChild(nameCell);
 
                         const ownedCell = document.createElement('td');
@@ -262,6 +345,7 @@
 
                     // Apply initial price highlighting after all rows are loaded
                     updateAllPriceHighlighting();
+                    applyFilters();
                 })
                 .catch(error => {
                     console.error('Error fetching or parsing sleeves.json:', error);
@@ -283,8 +367,9 @@
                     let isOwned = localStorage.getItem(storageKey) === 'true';
                     isOwned = !isOwned;
                     localStorage.setItem(storageKey, isOwned);
-                    
+
                     updateRowAppearance(row, button, isOwned);
+                    applyFilters();
                 }
             });
 
@@ -311,33 +396,41 @@
 
                     // Update price highlighting for this row
                     updatePriceHighlighting(sleeveId);
+                    applyFilters();
                 }
             }, true);
 
             // Filter buttons
             filterButtonGroup.addEventListener('click', function(e) {
                 if (e.target && e.target.matches('button')) {
-                    filterButtonGroup.querySelector('.active').classList.remove('active');
-e.target.classList.add('active');
+                    const activeButton = filterButtonGroup.querySelector('.active');
+                    if (activeButton) {
+                        activeButton.classList.remove('active');
+                    }
+                    e.target.classList.add('active');
 
-                    const filter = e.target.dataset.filter;
-                    const rows = tableBody.querySelectorAll('tr');
-
-                    rows.forEach(row => {
-                        const isOwned = row.classList.contains('table-success');
-                        let show = false;
-                        if (filter === 'all') {
-                            show = true;
-                        }
-                        else if (filter === 'owned' && isOwned) {
-                            show = true;
-                        }
-                        else if (filter === 'not-owned' && !isOwned) {
-                            show = true;
-                        }
-                        row.style.display = show ? '' : 'none';
-                    });
+                    currentOwnershipFilter = e.target.dataset.filter;
+                    applyFilters();
                 }
+            });
+
+            // Vendor price filters
+            vendorFilterButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const vendor = button.dataset.vendor;
+                    if (activeVendorFilters.has(vendor)) {
+                        activeVendorFilters.delete(vendor);
+                        button.classList.remove('btn-primary');
+                        button.classList.add('btn-outline-secondary');
+                        button.setAttribute('aria-pressed', 'false');
+                    } else {
+                        activeVendorFilters.add(vendor);
+                        button.classList.add('btn-primary');
+                        button.classList.remove('btn-outline-secondary');
+                        button.setAttribute('aria-pressed', 'true');
+                    }
+                    applyFilters();
+                });
             });
 
             // --- Export/Import Functionality ---
