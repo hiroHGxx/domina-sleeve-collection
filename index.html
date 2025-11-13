@@ -16,6 +16,9 @@
             height: auto;
             border-radius: 8px;
         }
+        .product-image--compact {
+            max-width: 70px;
+        }
         .table th, .table td {
             vertical-align: middle;
         }
@@ -284,8 +287,11 @@
                             const img = document.createElement('img');
                             img.src = sleeve.image_url;
                             img.alt = sleeve.product_name;
-                            img.className = 'product-image';
                             img.loading = 'lazy';
+                            img.classList.add('product-image');
+                            if (String(sleeve.id) === '999') {
+                                img.classList.add('product-image--compact');
+                            }
                             imgCell.appendChild(img);
                         }
                         row.appendChild(imgCell);

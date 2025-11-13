@@ -563,7 +563,7 @@
     "id": 57,
     "url": "https://www.dominagames.com/sleeves57",
     "product_name": "Art Sleeves Collection Stella Monolith ラフラハナ",
-    "image_url": "https://www.dominagames.com/wp-content/uploads/2023/04/sleeve57.webp",
+    "image_url": "https://www.dominagames.com/wp-content/uploads/2023/04/sleeve57-1.webp",
     "price": "990円",
     "quantity": "65枚",
     "size": "67mm × 92mm",
@@ -588,6 +588,16 @@
     "quantity": "65枚",
     "size": "67mm × 92mm",
     "release_date": "N/A"
+  },
+  {
+    "id": 999,
+    "url": "",
+    "product_name": "Art Sleeves Collection Stella Monolith ユキノ",
+    "image_url": "images/sleeve999.png",
+    "price": "",
+    "quantity": "",
+    "size": "",
+    "release_date": ""
   },
   {
     "id": 60,
